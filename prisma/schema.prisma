@@ -1,0 +1,192 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 分类表
+model Category {
+  id    String @id @default(cuid())
+  title String
+
+  @@map("categories")
+}
+
+// Agent表
+model Agent {
+  id                  String   @id @default(cuid())
+  agentName           String // 对应前端 agentName
+  agentAddress        String // 对应前端 agentAddress (API endpoint)
+  description         String // 对应前端 description
+  authorBio           String // 对应前端 authorBio
+  agentClassification String // 对应前端 agentClassification
+  tags                String[] // 对应前端 tags 数组
+  isPrivate           Boolean  @default(true) // 对应前端 isPrivate
+  autoAcceptJobs      Boolean  @default(true) // 对应前端 autoAcceptJobs
+  contractType        String   @default("result") // 对应前端 contractType
+  isActive            Boolean  @default(true)
+  reputation          Float    @default(0.0) // 信誉评分
+  successRate         Float    @default(0.0) // 成功率
+  totalJobsCompleted  Int      @default(0)
+  price               Float    @default(0.0) // Agent价格
+  isFree              Boolean  @default(false) // 是否免费
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // 钱包地址
+  walletAddress String // Privy 钱包地址  
+
+  // 反向关联：这个Agent被分配到的任务
+  jobDistributions JobDistributionAgent[]
+
+  @@map("agents")
+}
+
+// Job状态枚举
+enum JobStatus {
+  OPEN // 开放状态，等待分配
+  DISTRIBUTED // 已分发给多个Agent
+  IN_PROGRESS // 进行中
+  COMPLETED // 已完成
+  CANCELLED // 已取消
+  EXPIRED // 已过期
+}
+
+// Agent工作状态枚举
+enum AgentWorkStatus {
+  IDLE // 空闲状态
+  ASSIGNED // 已分配但未开始
+  WORKING // 工作中
+  COMPLETED // 已完成
+  FAILED // 执行失败
+  CANCELLED // 已取消
+  TIMEOUT // 超时
+}
+
+// Job表
+model Job {
+  id           String    @id @default(cuid())
+  jobTitle     String // 对应前端 jobTitle
+  category     String // 对应前端 category (存储分类ID)
+  description  String // 对应前端 description
+  deliverables String // 对应前端 deliverables
+  budget       Json // 对应前端 budget (number 或 {min, max})
+  minBudget    Float? // 对应前端 minBudget
+  maxBudget    Float? // 对应前端 maxBudget
+  deadline     DateTime // 对应前端 deadline
+  paymentType  String // 对应前端 paymentType
+  priority     String // 对应前端 priority
+  skillLevel   String // 对应前端 skillLevel
+  tags         String[] // 对应前端 tags 数组
+  status       JobStatus @default(OPEN)
+
+  // 自动分配和竞标设置 (对应前端的高级选项)
+  autoAssign             Boolean @default(false) // 对应前端 autoAssign
+  allowBidding           Boolean @default(true) // 对应前端 allowBidding (程序分发)
+  allowParallelExecution Boolean @default(false) // 是否允许并行执行
+  escrowEnabled          Boolean @default(true) // 对应前端 escrowEnabled
+  isPublic               Boolean @default(true) // 对应前端 isPublic
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 钱包地址
+  walletAddress String // Privy 钱包地址
+
+  // 一对一关系：一个Job只有一个分发记录
+  distributionRecord JobDistributionRecord?
+
+  @@map("jobs")
+}
+
+// 任务分发记录表（记录程序如何分发任务）
+model JobDistributionRecord {
+  id                String   @id @default(cuid())
+  jobId             String   @unique // 一对一关系，添加unique约束
+  jobName           String // Job的标题，冗余存储便于查询
+  matchCriteria     Json // 匹配标准 {tags: [], category: "", skillLevel: ""}
+  totalAgents       Int // 总共分发给多少个Agent
+  assignedCount     Int      @default(0) // 实际分配的Agent数量
+  responseCount     Int      @default(0) // 已响应的Agent数量
+  createdAt         DateTime @default(now())
+  // 最后被选中的Agent
+  assignedAgentId   String? // 最终选中的Agent
+  assignedAgentName String? // 最终选中的AgentNamne
+  // 一对一关系：一个分发记录属于一个Job
+  job               Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  // 通过中间表关联Agents
+  assignedAgents JobDistributionAgent[]
+
+  @@map("job_distribution_records")
+}
+
+// 任务分发-Agent中间表
+model JobDistributionAgent {
+  id                String   @id @default(cuid())
+  jobDistributionId String
+  agentId           String
+  assignedAt        DateTime @default(now())
+
+  // 新增：Agent工作状态跟踪
+  workStatus AgentWorkStatus @default(ASSIGNED) // Agent当前工作状态
+
+  // 新增：Agent执行结果 - 修改为Text类型存储markdown内容
+  executionResult String? @db.Text // Agent调用的返回结果，存储为大文本格式
+
+  // 执行时间跟踪
+  startedAt   DateTime? // 开始执行时间
+  completedAt DateTime? // 完成时间
+
+  // 进度和错误信息
+  progress     Int? // 执行进度 0-100
+  errorMessage String? // 错误信息
+
+  // 性能指标
+  executionTimeMs Int? // 执行耗时（毫秒）
+  retryCount      Int  @default(0) // 重试次数
+
+  // 关联关系
+  jobDistribution JobDistributionRecord @relation(fields: [jobDistributionId], references: [id], onDelete: Cascade)
+  agent           Agent                 @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  // 确保同一个分发记录不会重复分配给同一个Agent
+  @@unique([jobDistributionId, agentId])
+  @@map("job_distribution_agents")
+}
+
+// 任务执行日志表
+model ExecutionLog {
+  id        String   @id @default(cuid())
+  jobId     String
+  agentId   String  
+  eventType String   // 'ASSIGNED', 'STARTED', 'PROGRESS', 'COMPLETED', 'FAILED'
+  eventData Json?
+  createdAt DateTime @default(now())
+  
+  @@map("execution_logs")
+}
+
+// Agent性能统计表
+model AgentPerformance {
+  id               String   @id @default(cuid())
+  agentId          String   @unique
+  totalJobs        Int      @default(0)
+  completedJobs    Int      @default(0)
+  failedJobs       Int      @default(0)
+  avgExecutionTime Float    @default(0)
+  successRate      Float    @default(0)
+  lastUpdated      DateTime @default(now()) @updatedAt
+  
+  @@map("agent_performance")
+}
