@@ -49,8 +49,9 @@ src/executer/
 ├── job-distributor.service.ts    # 任务分发器
 ├── execution-tracker.service.ts  # 执行状态跟踪
 ├── agent-communication.service.ts # Agent通信模块
-├── executer.controller.ts        # 执行器控制器
+├── executer.service.ts        # 执行器服务
 ├── executer.module.ts            # 执行器模块
+├── scheduled-task.service.ts     # 定时任务服务
 └── interfaces/
     └── executer.interfaces.ts    # 接口定义
 ```
@@ -121,55 +122,6 @@ OPEN → DISTRIBUTED → IN_PROGRESS → COMPLETED/CANCELLED/EXPIRED
 IDLE → ASSIGNED → WORKING → COMPLETED/FAILED/CANCELLED/TIMEOUT
 ```
 
-## 🚀 API接口
-
-### 核心接口
-
-```typescript
-// 手动触发任务处理
-POST /api/executer/process-queue
-Response: { message: "Task processing started", processedCount: number }
-
-// 获取执行状态
-GET /api/executer/status/:jobId
-Response: {
-  jobId: string,
-  status: JobStatus,
-  distributionRecord: JobDistributionRecord,
-  agentExecutions: JobDistributionAgent[]
-}
-
-// 获取执行统计
-GET /api/executer/stats
-Response: {
-  totalJobs: number,
-  completedJobs: number,
-  failedJobs: number,
-  avgExecutionTime: number
-}
-```
-
-### Agent回调接口
-
-```typescript
-// Agent更新执行状态
-PUT /api/executer/agents/:agentId/status
-Body: {
-  distributionId: string,
-  workStatus: AgentWorkStatus,
-  progress?: number,
-  executionResult?: string
-}
-
-// Agent提交执行结果
-POST /api/executer/agents/:agentId/result
-Body: {
-  distributionId: string,
-  executionResult: string,
-  executionTimeMs: number
-}
-```
-
 ## 📊 最小可用版本实现范围
 
 ### Phase 1: 核心功能 ✅
@@ -236,38 +188,13 @@ pnpm start:dev
 DATABASE_URL="postgresql://username:password@localhost:5432/database"
 
 # 远程队列服务
-REMOTE_QUEUE_URL="https://your-queue-service.com/api"
+REMOTE_QUEUE_URL="https://your-queue-service.com"
 REMOTE_QUEUE_TOKEN="your-queue-access-token"
 
 # Agent执行配置
 DEFAULT_AGENT_TIMEOUT=30000
 MAX_AGENTS_PER_JOB=3
 EXECUTION_RETRY_COUNT=2
-```
-
-## 🔍 使用示例
-
-### 处理队列任务
-
-```typescript
-// 手动触发队列处理
-const response = await fetch('/api/executer/process-queue', {
-  method: 'POST',
-});
-
-const result = await response.json();
-console.log(`处理了 ${result.processedCount} 个任务`);
-```
-
-### 查询执行状态
-
-```typescript
-// 查询特定任务的执行状态
-const jobStatus = await fetch(`/api/executer/status/${jobId}`);
-const status = await jobStatus.json();
-
-console.log(`任务状态: ${status.status}`);
-console.log(`执行进度:`, status.agentExecutions);
 ```
 
 ## 📈 性能监控

@@ -136,7 +136,7 @@ export class AgentCommunicationService {
       this.logger.log(`Canceling task ${taskId} on agent ${agentAddress}`);
 
       const response = await axios.post<{ success: boolean; message?: string }>(
-        `${agentAddress}/api/cancel-task`,
+        `${agentAddress}/cancel-task`,
         { taskId },
         {
           timeout: this.defaultConfig.timeout,
@@ -183,7 +183,7 @@ export class AgentCommunicationService {
         maxTasks: number;
         isAvailable: boolean;
         status: string;
-      }>(`${agentAddress}/api/status`, {
+      }>(`${agentAddress}/status`, {
         timeout: this.defaultConfig.healthCheckTimeout,
         headers: {
           'Content-Type': 'application/json',

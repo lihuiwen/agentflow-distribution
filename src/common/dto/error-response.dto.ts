@@ -17,7 +17,7 @@ export class ErrorResponseDto {
   @ApiProperty({ description: '时间戳', example: '2024-01-01T00:00:00.000Z' })
   timestamp: string;
 
-  @ApiProperty({ description: '请求路径', example: '/api/agents' })
+  @ApiProperty({ description: '请求路径', example: '/agents' })
   path: string;
 
   constructor(
